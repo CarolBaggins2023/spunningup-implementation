@@ -308,7 +308,7 @@ def main():
 	num_runs = 5
 	seeds = [10 * i for i in range(num_runs)]
 	data_dir = ''.join([
-		'../data/',
+		'./data/',
 		time.strftime("%Y-%m-%d_%H-%M-%S_"),
 		continuous_env['exp_name'] if perform_continuous else discrete_env['exp_name'],
 	])
