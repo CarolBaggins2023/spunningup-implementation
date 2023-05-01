@@ -1,2 +1,0 @@
-Epoch	AverageEpisode_Reward	StdEpisode_Reward	MaxEpisode_Reward	MinEpisode_Reward	Episode_Length	AverageValue_Estimate	StdValue_Estimate	MaxValue_Estimate	MinValue_Estimate	Total_Interactions	Loss_Policy	Loss_Value_Function	Delta_Loss_Policy	Delta_Loss_Value_Function	Policy_Entropy	KL_Divergence	Time
-0	23.181286549707604	25803.38	73.0	9.0	24.181286549707604	-0.019732925415039064	15.127129	0.27486354	-0.252249	4000	7.029621601104736	284.58599853515625	0.0	0.0	0.6864975690841675	7.674098023713327e-10	1.9335823059082031
