@@ -1,0 +1,35 @@
+{
+    "actor_lr":	0.0003,
+    "clip_ratio":	0.2,
+    "critic_lr":	0.001,
+    "exp_name":	"PPO_HalfCheetah",
+    "gamma":	0.99,
+    "lam":	0.97,
+    "logger":	{
+        "<log_data.EpochLogger object at 0x000001EBEECF4790>":	{
+            "epoch_dict":	{},
+            "exp_name":	"PPO_HalfCheetah",
+            "first_row":	true,
+            "log_current_row":	{},
+            "log_headers":	[],
+            "output_dir":	"./data/2023-05-03_20-24-08_PPO_HalfCheetah\\2023-05-03_20-32-16-PPO_HalfCheetah_s10",
+            "output_file":	{
+                "<_io.TextIOWrapper name='./data/2023-05-03_20-24-08_PPO_HalfCheetah\\\\2023-05-03_20-32-16-PPO_HalfCheetah_s10\\\\progress.txt' mode='w' encoding='cp936'>":	{
+                    "mode":	"w"
+                }
+            }
+        }
+    },
+    "logger_kwargs":	{
+        "exp_name":	"PPO_HalfCheetah",
+        "output_dir":	"./data/2023-05-03_20-24-08_PPO_HalfCheetah\\2023-05-03_20-32-16-PPO_HalfCheetah_s10"
+    },
+    "make_env":	"<function main.<locals>.<lambda> at 0x000001EBF0EC0EE0>",
+    "model_save_frequency":	10,
+    "num_epochs":	50,
+    "policy_update_iterations":	80,
+    "seed":	10,
+    "steps_per_epoch":	4000,
+    "target_policy_kl_divergence":	0.01,
+    "value_estimate_update_iterations":	80
+}
