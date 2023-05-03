@@ -40,12 +40,12 @@ class CategoricalActor(nn.Module):
 			self,
 			observation: torch.Tensor,
 			action: torch.Tensor,
-	):
+	) -> (Categorical, torch.Tensor):
 		action_distribution = self.distribution(observation)
 		action_log_prob = self.log_prob_from_distribution(
 			action_distribution, action
 		)
-		return action_distribution, action_log_prob.cpu()
+		return action_distribution, action_log_prob
 		
 
 class Critic(nn.Module):
@@ -55,7 +55,7 @@ class Critic(nn.Module):
 	
 	def forward(self, observation: torch.Tensor) -> torch.Tensor:
 		value_estimate = self.value_net(observation)
-		return value_estimate.cpu()
+		return value_estimate
 
 
 class ActorCritic(nn.Module):
@@ -78,9 +78,9 @@ class ActorCritic(nn.Module):
 			)
 			value_estimate = self.critic(observation)
 		return (
-			action.cpu().numpy(),
-			action_log_prob.cpu().numpy(),
-			value_estimate.cpu().numpy(),
+			action.numpy(),
+			action_log_prob.numpy(),
+			value_estimate.numpy(),
 		)
 	
 	def act(self, observation: torch.Tensor) -> np.ndarray:

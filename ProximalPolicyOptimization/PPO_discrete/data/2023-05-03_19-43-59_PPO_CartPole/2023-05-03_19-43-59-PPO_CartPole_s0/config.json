@@ -1,0 +1,35 @@
+{
+    "actor_lr":	0.0003,
+    "clip_ratio":	0.2,
+    "critic_lr":	0.001,
+    "exp_name":	"PPO_CartPole",
+    "gamma":	0.99,
+    "lam":	0.97,
+    "logger":	{
+        "<log_data.EpochLogger object at 0x000001B157BBD970>":	{
+            "epoch_dict":	{},
+            "exp_name":	"PPO_CartPole",
+            "first_row":	true,
+            "log_current_row":	{},
+            "log_headers":	[],
+            "output_dir":	"./data/2023-05-03_19-43-59_PPO_CartPole\\2023-05-03_19-43-59-PPO_CartPole_s0",
+            "output_file":	{
+                "<_io.TextIOWrapper name='./data/2023-05-03_19-43-59_PPO_CartPole\\\\2023-05-03_19-43-59-PPO_CartPole_s0\\\\progress.txt' mode='w' encoding='cp936'>":	{
+                    "mode":	"w"
+                }
+            }
+        }
+    },
+    "logger_kwargs":	{
+        "exp_name":	"PPO_CartPole",
+        "output_dir":	"./data/2023-05-03_19-43-59_PPO_CartPole\\2023-05-03_19-43-59-PPO_CartPole_s0"
+    },
+    "make_env":	"<function main.<locals>.<lambda> at 0x000001B157BCA790>",
+    "model_save_frequency":	10,
+    "num_epochs":	50,
+    "policy_update_iterations":	80,
+    "seed":	0,
+    "steps_per_epoch":	4000,
+    "target_policy_kl_divergence":	0.01,
+    "value_estimate_update_iterations":	80
+}

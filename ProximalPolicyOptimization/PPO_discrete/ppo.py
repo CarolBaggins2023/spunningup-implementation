@@ -1,9 +1,13 @@
 from typing import Dict
 import numpy as np
 import time
+import os
 
 import torch
 from torch.optim import Adam
+from torch.utils.tensorboard import SummaryWriter
+
+import gymnasium as gym
 
 from ActotCritic import ActorCritic
 from Buffer import Buffer
@@ -17,24 +21,31 @@ def count_variables(module):
 	return variables_number
 
 
-def vpg(
+def setup_logger_kwargs(exp_name: str, seed: int, data_dir: str):
+	# Make a seed-specific subfolder in the experiment directory.
+	hms_time = time.strftime("%Y-%m-%d_%H-%M-%S")
+	subfolder = ''.join([hms_time, '-', exp_name, '_s', str(seed)])
+	
+	logger_kwargs = dict(output_dir=os.path.join(data_dir, subfolder), exp_name=exp_name)
+	return logger_kwargs
+
+
+def ppo(
 		make_env,
 		seed: int,
-		steps_per_epoch: int,
-		gamma: float,
-		lam: float,
-		clip_ratio: float,
-		actor_lr: float,
-		critic_lr: float,
-		policy_update_iterations: int,
-		value_estimate_update_iterations: int,
-		target_policy_kl_divergence: float,
-		num_epochs: int,
-		logger_kwargs: Dict,
+		steps_per_epoch: int = 4_000,
+		gamma: float = 0.99,
+		lam: float = 0.97,
+		clip_ratio: float = 0.2,
+		actor_lr: float = 3e-4,
+		critic_lr: float = 1e-3,
+		policy_update_iterations: int = 80,
+		value_estimate_update_iterations: int = 80,
+		target_policy_kl_divergence: float = 0.01,
+		num_epochs: int = 50,
+		model_save_frequency: int = 10,
+		logger_kwargs: Dict = None,
 ):
-	# Set up device.
-	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-	
 	# Set up logger.
 	logger = EpochLogger(**logger_kwargs)
 	logger.save_config(locals())
@@ -47,7 +58,7 @@ def vpg(
 	env = make_env()
 	
 	# Construct agent.
-	agent = ActorCritic(env.observation_space, env.action_space).to(device)
+	agent = ActorCritic(env.observation_space, env.action_space)
 	variables_number = tuple(
 		count_variables(module) for module in [agent.actor, agent.critic]
 	)
@@ -70,18 +81,15 @@ def vpg(
 		# (3) clip_fraction (since we use PPO-clip).
 		
 		# Note that the prefix old refers to the policy used to collect trajectories.
-		observation = data["observation"]
-		action = data["action"]
-		old_action_log_prob = data["action_log_prob"]
-		advantage = data["advantage"]
+		observation = torch.tensor(data["observation"], dtype=torch.float32)
+		action = torch.tensor(data["action"], dtype=torch.float32)
+		old_action_log_prob = torch.tensor(data["action_log_prob"], dtype=torch.float32)
+		advantage = torch.tensor(data["advantage"], dtype=torch.float32)
 		
-		action_distribution, action_log_prob = agent.actor(
-			torch.tensor(observation, dtype=torch.float32).to(device),
-			torch.tensor(action, dtype=torch.float32).to(device),
-		)
+		action_distribution, action_log_prob = agent.actor(observation, action)
 		
 		# Compute entropy of new_policy
-		entropy = action_distribution.entropy().cpu().item()
+		entropy = action_distribution.entropy().mean().item()
 		
 		# Compute clip_fraction.
 		policy_ratio = torch.exp(action_log_prob - old_action_log_prob)
@@ -96,7 +104,10 @@ def vpg(
 			policy_ratio, 1 - clip_ratio, 1 + clip_ratio
 		)
 		clipped_advantage = clipped_policy_ratio * advantage
-		loss = torch.min(policy_ratio*advantage, clipped_advantage)
+		# Critical:
+		# When updating policy, loss should be negative,
+		# since we are going to execute gradient ascent.
+		loss = - (torch.min(policy_ratio * advantage, clipped_advantage)).mean()
 		
 		actor_information = dict(
 			kl_divergence=kl_divergence,
@@ -107,9 +118,9 @@ def vpg(
 		return loss, actor_information
 	
 	def compute_critic_loss(data) -> torch.Tensor:
-		observation = data['observation']
-		ret = data['ret']
-		value_estimate = agent.critic(torch.tensor(observation).to(device))
+		observation = torch.tensor(data['observation'], dtype=torch.float32)
+		ret = torch.tensor(data['ret'], dtype=torch.float32)
+		value_estimate = agent.critic(observation)
 		loss = ((value_estimate - ret) ** 2).mean()
 		return loss
 	
@@ -134,7 +145,7 @@ def vpg(
 		idx = 0
 		latest_actor_loss = None
 		latest_actor_information = None
-		while idx < policy_update_iterations:
+		for idx in range(policy_update_iterations):
 			actor_optimizer.zero_grad()
 			actor_loss, actor_information = compute_actor_loss(data)
 			# It is the kl_divergence between the latest agent.actor's policy
@@ -142,15 +153,13 @@ def vpg(
 			kl_divergence = actor_information['kl_divergence']
 			# It means the policy has updated enough and should be early-stopped.
 			if kl_divergence > 1.5 * target_policy_kl_divergence:
-				logger.log("Early stopping at step %d due to reaching max KL divergence." % idx)
+				logger.log("Early stopping at step %d due to reaching max KL divergence." % (idx + 1))
 				break
 			actor_loss.backward()
 			actor_optimizer.step()
 			
 			latest_actor_loss = actor_loss.item()
 			latest_actor_information = actor_information
-			
-			idx += 1
 		
 		logger.store(Early_Stop_Iter=idx)
 
@@ -169,7 +178,7 @@ def vpg(
 			Loss_Policy=old_actor_loss,
 			Loss_Value=old_critic_loss,
 			KL_Divergence=latest_actor_information['kl_divergence'],
-			Entropy=old_actor_information['Entropy'],
+			Entropy=old_actor_information['entropy'],
 			Clip_Fraction=latest_actor_information['clip_fraction'],
 			Delta_Loss_Policy=(latest_actor_loss - old_actor_loss),
 			Delta_Loss_Value=(latest_critic_loss - old_critic_loss),
@@ -179,15 +188,18 @@ def vpg(
 	def main_loop():
 		start_time = time.time()
 		
-		episode_step, episode_reward = 0, 0
+		tensorboard_idx = 0
+		episode_len, episode_reward = 0, 0
 		observation, _ = env.reset()
 		for epoch in range(num_epochs):
 			for timestep in range(steps_per_epoch):
-				action, action_log_prob, value_estimate = agent.step(observation)
-				# Flag terminated is controlled by steps_per_episode.
+				action, action_log_prob, value_estimate = agent.step(
+					torch.tensor(observation, dtype=torch.float32)
+				)
+				# Flag truncated is controlled by steps_per_episode.
 				next_observation, reward, terminated, truncated, _ = env.step(action)
 				
-				episode_step += 1
+				episode_len += 1
 				episode_reward += reward
 				buffer.store(observation, action, reward, action_log_prob, value_estimate)
 				logger.store(Value_Estimate=value_estimate)
@@ -199,10 +211,15 @@ def vpg(
 				if epoch_end or terminated or truncated:
 					if epoch_end and not (terminated or truncated):
 						print('Warning: trajectory cut off by epoch ', end='')
-						print('at %d steps.' % episode_step, flush=True)
+						print('at %d steps.' % episode_len, flush=True)
 					
-					if epoch or terminated:
-						_, _, last_value = agent.step(observation)
+					# When the agent has not reached terminal state, and is interrupted
+					# by environment.
+					if epoch_end or truncated:
+						_, _, last_value = agent.step(
+							torch.tensor(observation, dtype=torch.float32)
+						)
+					# When the agent has reached terminal state.
 					else:
 						last_value = 0
 					buffer.finish_trajectory(last_value)
@@ -210,14 +227,29 @@ def vpg(
 					if terminated:
 						logger.store(
 							Episode_Reward=episode_reward,
-							Episode_Length=episode_step,
+							Episode_Length=episode_len,
 						)
 						
 					observation, _ = env.reset()
-					episode_step, episode_reward = 0, 0
+					episode_len, episode_reward = 0, 0
 			
-			# Save model.
+			# Save environment and agent.
+			if (epoch % model_save_frequency == 0) or (epoch == num_epochs - 1):
+				logger.save_state({'environment': env, 'agent': agent}, None)
+			
+			# Perform PPO update!
 			update()
+			
+			tensorboard_writer.add_scalar(
+				'Entropy_s'+str(seed), logger.get_stats('Entropy')[0], tensorboard_idx
+			)
+			tensorboard_writer.add_scalar(
+				'Episode_Reward_s'+str(seed), logger.get_stats('Episode_Reward')[0], tensorboard_idx
+			)
+			tensorboard_writer.add_scalar(
+				'Clip_Fraction_s'+str(seed), logger.get_stats('Clip_Fraction')[0], tensorboard_idx
+			)
+			tensorboard_idx += 1
 			
 			# Log information of this epoch.
 			logger.log_tabular('Epoch', epoch)
@@ -235,3 +267,28 @@ def vpg(
 			logger.log_tabular('Early_Stop_Iter', average_only=True)
 			logger.log_tabular('Time', time.time() - start_time)
 			logger.dump_tabular()
+	
+	# Run the main loop.
+	main_loop()
+
+
+def main():
+	env_name = 'CartPole-v1'
+	experiment_name = 'PPO_CartPole'
+	max_episode_steps = 1_000
+	num_runs = 3
+	seeds = [10 * i for i in range(num_runs)]
+	data_dir = ''.join(['./data/', time.strftime("%Y-%m-%d_%H-%M-%S_"), experiment_name])
+	for seed in seeds:
+		logger_kwargs = setup_logger_kwargs(experiment_name, seed, data_dir)
+		ppo(
+			make_env=lambda: gym.make(env_name, max_episode_steps=max_episode_steps),
+			seed=seed,
+			logger_kwargs=logger_kwargs,
+		)
+
+
+if __name__ == '__main__':
+	tensorboard_writer = SummaryWriter()
+	main()
+	tensorboard_writer.close()

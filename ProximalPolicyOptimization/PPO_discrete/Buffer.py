@@ -1,8 +1,6 @@
 import numpy as np
 from typing import SupportsFloat
 
-import torch
-
 
 def combine_shape(capacity, space_shape):
 	if np.isscalar(space_shape):
@@ -11,14 +9,14 @@ def combine_shape(capacity, space_shape):
 		return capacity, *space_shape
 
 
-def compute_cumsum(data: np.ndarray, discount: float):
+def compute_cumsum(data: np.ndarray, discount: float) -> np.ndarray:
 	cumsum = 0
 	cumsum_list = list()
 	for elem in data[::-1]:
 		cumsum = discount * cumsum + elem
 		cumsum_list.append(cumsum)
 	cumsum_list.reverse()
-	return cumsum_list
+	return np.array(cumsum_list)
 
 
 class Buffer:
@@ -74,21 +72,22 @@ class Buffer:
 		# Compute advantages.
 		# V_(s_(t+1)) is in need to calculate delta_t.
 		# So, extend value_estimates by append a last_value.
-		value_estimate = np.append(self.value_buf[trajectory_slice], last_value)
+		values_estimate = np.append(self.value_buf[trajectory_slice], last_value)
 		# To fairly estimate the reward-to-go of the last observation of
 		# a truncated trajectory of length T, sum of (R_T, ...) should be
 		# appended in the end of reward_buf.
 		# Sum of (R_T, ...) is approximated by last_value here.
-		reward = np.append(self.reward_buf[trajectory_slice], last_value)
-		delta = - value_estimate[:-1] + reward + self.gamma * value_estimate[1:]
+		rewards = np.append(self.reward_buf[trajectory_slice], last_value)
+		delta = - values_estimate[:-1] + rewards[:-1] + self.gamma * values_estimate[1:]
 		self.advantage_buf[trajectory_slice] = compute_cumsum(
 			delta, self.gamma * self.lam
 		)
+		
 		# Compute returns (rewards-to-go).
 		# Critical: execute [:-1],
 		# otherwise it will be a list with a length of T+1, not T.
 		self.return_buf[trajectory_slice] = compute_cumsum(
-			reward, self.gamma
+			rewards, self.gamma
 		)[:-1]
 		
 		self.trajectory_begin_ptr = self.ptr
@@ -100,11 +99,11 @@ class Buffer:
 		advantage_std = np.std(self.advantage_buf)
 		self.advantage_buf = (self.advantage_buf - advantage_mean) / advantage_std
 		data = dict(
-			observation=torch.tensor(self.observation_buf, dtype=torch.float32),
-			action=torch.tensor(self.action_buf, dtype=torch.float32),
-			action_log_prob=torch.tensor(self.action_log_prob_buf, dtype=torch.float32),
-			ret=torch.tensor(self.return_buf, dtype=torch.float32),
-			advantage=torch.tensor(self.advantage_buf, dtype=torch.float32),
+			observation=self.observation_buf,
+			action=self.action_buf,
+			action_log_prob=self.action_log_prob_buf,
+			ret=self.return_buf,
+			advantage=self.advantage_buf,
 		)
 		self.ptr, self.trajectory_begin_ptr = 0, 0
 		return data
