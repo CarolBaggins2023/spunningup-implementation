@@ -1,0 +1,38 @@
+{
+    "action_noise_coef":	0.1,
+    "actor_lr":	0.001,
+    "batch_size":	100,
+    "critic_lr":	0.001,
+    "exp_name":	"DDPG_HalfCheetah",
+    "gamma":	0.99,
+    "logger":	{
+        "<log_data.EpochLogger object at 0x00000269E16EB040>":	{
+            "epoch_dict":	{},
+            "exp_name":	"DDPG_HalfCheetah",
+            "first_row":	true,
+            "log_current_row":	{},
+            "log_headers":	[],
+            "output_dir":	"./data/2023-05-08_21-24-26_DDPG_HalfCheetah\\2023-05-08_21-24-26-DDPG_HalfCheetah_s10",
+            "output_file":	{
+                "<_io.TextIOWrapper name='./data/2023-05-08_21-24-26_DDPG_HalfCheetah\\\\2023-05-08_21-24-26-DDPG_HalfCheetah_s10\\\\progress.txt' mode='w' encoding='cp936'>":	{
+                    "mode":	"w"
+                }
+            }
+        }
+    },
+    "logger_kwargs":	{
+        "exp_name":	"DDPG_HalfCheetah",
+        "output_dir":	"./data/2023-05-08_21-24-26_DDPG_HalfCheetah\\2023-05-08_21-24-26-DDPG_HalfCheetah_s10"
+    },
+    "make_env":	"<function main.<locals>.<lambda> at 0x00000269E16D5C10>",
+    "num_epochs":	100,
+    "num_test_episodes":	10,
+    "polyak_coef":	0.995,
+    "replay_buffer_size":	1000000,
+    "save_state_freq":	1,
+    "seed":	10,
+    "start_steps":	10000,
+    "steps_per_epoch":	4000,
+    "update_after_interaction":	1000,
+    "update_every_interaction":	50
+}
