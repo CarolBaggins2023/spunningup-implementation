@@ -6,26 +6,28 @@ from torch import Tensor
 
 
 class MLP(nn.Module):
-	def __init__(self, in_dim: int, out_dim: int):
+	def __init__(self, in_dim: int, out_dim: int, out_activation):
 		super().__init__()
 		self.fc1 = nn.Linear(in_features=in_dim, out_features=256)
 		self.fc2 = nn.Linear(in_features=256, out_features=256)
 		self.fc3 = nn.Linear(in_features=256, out_features=out_dim)
 		self.activation = nn.ReLU()
-		self.tanh = nn.Tanh()
+		self.out_activation = out_activation()
 	
 	def forward(self, x: Tensor) -> Tensor:
 		x = self.activation(self.fc1(x))
 		x = self.activation(self.fc2(x))
 		x = self.fc3(x)
-		x = self.tanh(x)
+		x = self.out_activation(x)
 		return x
 
 
 class Actor(nn.Module):
 	def __init__(self, observation_dim: int, action_dim: int, action_limit: float):
 		super().__init__()
-		self.policy = MLP(in_dim=observation_dim, out_dim=action_dim)
+		self.policy = MLP(
+			in_dim=observation_dim, out_dim=action_dim, out_activation=nn.Tanh
+		)
 		self.action_limit = action_limit
 	
 	def forward(self, observation: Tensor) -> Tensor:
@@ -36,7 +38,9 @@ class Actor(nn.Module):
 class Critic(nn.Module):
 	def __init__(self, observation_action_dim: int):
 		super().__init__()
-		self.value_function = MLP(observation_action_dim, 1)
+		self.value_function = MLP(
+			observation_action_dim, 1, out_activation=nn.Identity
+		)
 	
 	def forward(self, observation: Tensor, action: Tensor) -> Tensor:
 		action_value = self.value_function(torch.cat([observation, action], dim=-1))
